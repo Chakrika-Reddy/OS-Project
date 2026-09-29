@@ -1,0 +1,76 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <string.h>
+
+int main() {
+    int pipefd[2];
+    pid_t pid;
+    char buffer[100];
+
+    // CO-3: Create anonymous pipe for IPC
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        return 1;
+    }
+
+    // CO-1 + CO-2: Create child process using system call
+    pid = fork();
+
+    if (pid < 0) {
+        perror("fork");
+        return 1;
+    }
+
+    if (pid == 0) {
+        // CO-2: Child process
+        close(pipefd[0]);
+
+        // Project: Dynamic Memory Allocation
+        int *a = malloc(10 * sizeof(int));
+        int *b = calloc(20, sizeof(int));
+
+        if (a == NULL || b == NULL) {
+            perror("Memory allocation failed");
+            _exit(1);
+        }
+
+        // Project: Reallocate memory
+        a = realloc(a, 20 * sizeof(int));
+
+        strcpy(buffer, "Child allocated: malloc=80B, calloc=80B, realloc=160B");
+
+        // CO-1 + CO-3: Write information through pipe
+        write(pipefd[1], buffer, strlen(buffer) + 1);
+
+        free(a);
+        free(b);
+
+        close(pipefd[1]);
+
+        // CO-2: Child termination
+        _exit(0);
+    }
+    else {
+        // CO-2: Parent process
+        close(pipefd[1]);
+
+        // CO-1 + CO-3: Read data from child through pipe
+        read(pipefd[0], buffer, sizeof(buffer));
+
+        printf("\n=== Memory Allocation Monitor ===\n");
+        printf("Parent PID : %d\n", getpid());
+        printf("Child PID  : %d\n", pid);
+        printf("%s\n", buffer);
+
+        close(pipefd[0]);
+
+        // CO-2: Synchronize with child
+        wait(NULL);
+
+        printf("Child process completed and memory released.\n");
+    }
+
+    return 0;
+}
